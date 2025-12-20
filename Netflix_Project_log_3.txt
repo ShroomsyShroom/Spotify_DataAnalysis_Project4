@@ -1,0 +1,307 @@
+--NETFLIX PROJECT--
+
+1. CREATE a database for the project in postgresql
+2. Then in that database create a table for your project.
+Code:
+--  Netflix Project Yayyyyy
+CREATE TABLE netflix 
+(	show_id VARCHAR(10), 
+	type VARCHAR(15), 
+	title VARCHAR(150), 
+	director VARCHAR(250), 
+	casts VARCHAR(1000), 
+	country VARCHAR(150), 
+	date_added VARCHAR(50), 
+	release_year INT, 
+	rating VARCHAR(10), 
+	duration VARCHAR(15), 
+	listed_in VARCHAR(100), 
+	description VARCHAR(300)
+)
+SELECT * FROM netflix;
+
+3. Upon creating the table structure import the data in it from your dataset.
+4. Now we solve our business problems.
+
+Problem 1. Count the Number of Movies vs TV Shows.
+Code:
+SELECT 
+type,
+COUNT(show_id) as total_content
+FROM netflix
+GROUP BY type;
+
+Problem 2. Find the Most Common Rating for Movies and TV Shows
+Code:
+SELECT
+type, rating
+FROM
+(
+	SELECT 
+		type,
+		rating,
+		COUNT(show_id),
+		RANK() OVER (PARTITION BY type ORDER BY COUNT(*) DESC) as Ranking
+	FROM netflix
+	GROUP BY 1, 2) as t1
+	WHERE ranking = 1
+
+Problem 3. List All Movies Released in a Specific Year (e.g., 2020)
+Code:
+SELECT * FROM netflix
+WHERE release_year=2020 AND type='Movie';
+
+Problem 4. Find the Top 5 Countries with the Most Content on Netflix
+Code:
+
+--Create arrays out of the country column as multiple countries separated by commas in one cell as a new column
+--UNNEST these arrays as a new column
+
+SELECT
+	UNNEST(string_to_array(country,',')) AS new_country, --UNNEST-ing the diff countries into a new column
+	COUNT(show_id) as content_from_country
+FROM netflix
+GROUP BY new_country
+ORDER BY 2 DESC
+LIMIT 5;
+
+
+Problem 5. Identify the Longest Movie
+Code:
+WITH movietable AS ( --USING CTE doing the dirty work of converting string into minutes earlier)
+	SELECT 
+    	title, 
+    	REPLACE(duration, ' min', '')::INT AS duration_minutes
+	FROM netflix
+	WHERE type = 'Movie'
+	AND duration IS NOT NULL 
+)
+SELECT title, duration_minutes
+FROM movietable
+ORDER BY duration_minutes DESC
+LIMIT 1;
+
+Problem 6. Find Content Added in the Last 5 Years
+Code:
+
+SELECT 
+	title, date_added
+FROM netflix
+WHERE
+	TO_DATE(date_added,'Month DD, YYYY') >= CURRENT_DATE - INTERVAL '5 years'
+	
+--or--
+--USING CTE
+WITH cleaned_netflix AS
+	(
+	SELECT 
+		title,
+		TO_DATE(date_added,'Month DD, YYYY') AS Usable_date
+	FROM netflix
+	WHERE date_added IS NOT NULL
+	AND date_added != ''
+	)
+SELECT title, Usable_date
+FROM cleaned_netflix
+WHERE Usable_date >= CURRENT_DATE - INTERVAL '5 years'
+ORDER BY Usable_date DESC;
+
+
+Problem 7. Find All Movies/TV Shows by Director 'Rajiv Chilaka'
+Code:
+--CTE version--
+WITH director_netflix AS
+	(
+	SELECT
+		title,
+		UNNEST(STRING_to_ARRAY(director,',')) AS director_list --UNNESTING THE ARRAY ITEMS INTO A SEPARATE COLUMN
+	FROM netflix
+	)
+SELECT * FROM director_netflix
+WHERE director_list = 'Rajiv Chilaka';
+
+--Or--
+
+SELECT * FROM netflix;
+SELECT title,director
+FROM netflix
+WHERE director ILIKE '%Rajiv Chilaka%'; --ILIKE used for Case sensitive data
+
+Problem 8. List All TV Shows with More Than 5 Seasons
+Code:
+SELECT 
+	title, duration
+FROM netflix
+WHERE 
+type = 'TV Show'
+AND
+SPLIT_PART(duration, ' ', 1)::numeric > 5  --USING Split part to split the duration into 2 halves based on delimeter "space" AND taking the 1st part of the string out ALSO :: used to convert data type from string to numeric;-;
+;
+
+--or--USING CTE
+
+WITH tv_seasons AS (
+    SELECT 
+        title,
+        duration,
+        SPLIT_PART(duration, ' ', 1)::INT AS total_seasons  -- We extract the number and give it a clean name
+    FROM netflix
+    WHERE type = 'TV Show'
+)
+SELECT 
+    title, 
+    duration
+FROM tv_seasons
+WHERE total_seasons > 5
+ORDER BY total_seasons DESC;
+
+
+Problem 9. Count the Number of Content Items in Each Genre
+Code:
+
+--CTE method
+
+WITH genre_list AS 
+	(
+	SELECT 
+		title,
+		UNNEST(string_to_array(listed_in,',')) AS genre_name
+	FROM netflix
+	)
+SELECT genre_name, COUNT(genre_list) AS total_content
+FROM genre_list
+GROUP BY genre_name;
+
+--Or--
+
+SELECT 
+	UNNEST(string_to_array(listed_in,',')) AS genre_name,
+	COUNT(show_id) AS content_count
+FROM netflix
+GROUP BY 1;
+
+Problem 10. Find each year and the average numbers of content release in India on Netflix
+Code:
+
+
+WITH content_from_india AS
+	(
+	SELECT 
+		release_year,
+		COUNT(*) AS no_of_releases
+	FROM netflix
+	WHERE country LIKE '%India%'
+	GROUP BY release_year
+	)
+SELECT 
+	release_year,
+	no_of_releases,
+	ROUND(AVG(no_of_releases) OVER(), 2) AS overall_avg
+FROM content_from_india
+
+--ORRRRR you can do it simply
+
+SELECT 
+    release_year, 
+    COUNT(*) as total_releases
+FROM netflix
+WHERE country LIKE '%India%'
+GROUP BY release_year
+ORDER BY release_year DESC;
+
+Problem 11. List All Movies that are Documentaries
+Code:
+
+SELECT * FROM netflix;
+SELECT *
+FROM netflix
+WHERE listed_in ILIKE '%Documentaries%'
+
+Problem 12. Find All Content Without a Director
+Code:
+
+SELECT 
+	*
+FROM netflix
+WHERE director IS NULL;
+
+Problem 13. Find How Many Movies Actor 'Salman Khan' Appeared in the Last 10 Years
+Code:
+
+SELECT * FROM netflix;
+SELECT 
+*
+FROM netflix
+WHERE 
+	casts ILIKE '%Salman Khan%'
+	AND
+	release_year > EXTRACT(YEAR FROM CURRENT_DATE) - 10 
+ORDER BY release_year;
+
+Problem 14. Find the Top 10 Actors Who Have Appeared in the Highest Number of Movies Produced in India
+Code:
+
+SELECT * FROM netflix;
+SELECT 
+	UNNEST(String_to_array(casts,',')) AS actor_name,
+	COUNT(*) AS Total_movies
+FROM netflix
+WHERE
+country LIKE '%india%'
+AND
+type='Movie'
+GROUP BY actor_name
+ORDER BY total_movies DESC
+LIMIT 10;
+
+--CTE version
+
+WITH actors_list AS
+	(
+	SELECT 
+		UNNEST(string_to_array(casts,',')) AS actor_name,
+		title,
+		type
+	FROM netflix
+	WHERE country ILIKE '%India%'
+	)
+SELECT
+	actor_name,
+	COUNT(*) AS total_movies
+FROM actors_list
+WHERE type = 'Movie'
+GROUP BY actor_name
+ORDER BY total_movies DESC
+LIMIT 10;
+
+Problem 15. Categorize Content Based on the Presence of 'Kill' and 'Violence' Keywords. Label content w such words as bad and content w/o such words as Good. Count each items falling into these categories.
+Code:
+
+WITH content_categorizer 
+AS
+(
+SELECT 
+*,
+	CASE
+	WHEN 
+		description ILIKE '%Kill%' OR description ILIKE '%Violence%' THEN 'Bad_Content'
+		ELSE 'Good_Content'
+	END category
+FROM netflix
+)
+SELECT 
+	category,
+	COUNT(*) AS total_content
+FROM content_categorizer
+GROUP BY 1
+
+5. With that we've solved all our major business problems.
+
+
+
+
+
+
+
+
+
