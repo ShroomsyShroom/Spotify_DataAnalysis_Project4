@@ -1,242 +1,45 @@
-# Spotify_DataAnalysis_Project4
---SPOTIFY project--
-1. Create a database in SQL name it wtv you want
-2. Create a table in this database.
-Code: 
-CREATE TABLE spotify (
-    artist VARCHAR(255),
-    track VARCHAR(255),
-    album VARCHAR(255),
-    album_type VARCHAR(50),
-    danceability FLOAT,
-    energy FLOAT,
-    loudness FLOAT,
-    speechiness FLOAT,
-    acousticness FLOAT,
-    instrumentalness FLOAT,
-    liveness FLOAT,
-    valence FLOAT,
-    tempo FLOAT,
-    duration_min FLOAT,
-    title VARCHAR(255),
-    channel VARCHAR(255),
-    views FLOAT,
-    likes BIGINT,
-    comments BIGINT,
-    licensed BOOLEAN,
-    official_video BOOLEAN,
-    stream BIGINT,
-    energy_liveness FLOAT,
-    most_played_on VARCHAR(50)
-);
+<h1>Netflix Data Analytics & Content Strategy Project</h1>
 
-3. Upon creating the table import the data. If you're getting errors such as:
---delimeter based error change it from sql itself while importing
---Fix the data types or limits based on the datasets
+<p>This project involves a comprehensive exploratory data analysis (EDA) of Netflix’s global library. By leveraging PostgreSQL, we transform raw metadata into actionable business insights. The analysis covers content distribution, geographic dominance, talent tracking, and automated content categorization using advanced SQL techniques such as Common Table Expressions (CTEs), Window Functions, and String Manipulation.</p>
 
-4. Now lets perform some easy operations on the dataset i.e EDA
+<h2>1. Database Schema and Initialization</h2> <p>The first stage requires establishing a robust table structure in PostgreSQL to house the Netflix dataset. The schema is designed to handle varying data lengths, particularly for the <code>casts</code> and <code>director</code> columns which often contain multi-valued strings.</p>
 
-Problem 1. Retrieve the names of all tracks that have more than 1 billion streams.
-Code:
+<pre> -- Initialize Netflix Project Schema CREATE TABLE netflix ( show_id VARCHAR(10), type VARCHAR(15), title VARCHAR(150), director VARCHAR(250), casts VARCHAR(1000), country VARCHAR(150), date_added VARCHAR(50), release_year INT, rating VARCHAR(10), duration VARCHAR(15), listed_in VARCHAR(100), description VARCHAR(300) );
 
---Retrieve the names of all tracks that have more than 1 billion streams.
---SELECT * FROM spotify;
-SELECT track,stream FROM spotify WHERE
-stream >  1000000000;
+-- Data Verification SELECT * FROM netflix; </pre>
 
-Problem 2. List all albums along with their respective artists.
-Code:
+<h2>2. Core Business Problems & Analytical Solutions</h2>
 
---List all albums along with their respective artists.
-SELECT DISTINCT album, artist
-FROM spotify;
+<p>The following 15 business problems represent critical questions a data analyst would answer to help stakeholders understand content performance and regional trends.</p>
 
-Problem 3. Get the total number of comments for tracks where licensed = TRUE.
-Code:
+<h3>Q1. Quantitative Analysis: Movies vs. TV Shows</h3> <p>Understanding the volume of each content format is essential for inventory management.</p> <pre> SELECT type, COUNT(show_id) as total_content FROM netflix GROUP BY type; </pre>
 
---Get the total number of comments for tracks where licensed = TRUE.
-SELECT SUM(comments) as total_comments 
-FROM spotify
-WHERE licensed = 'true';
+<h3>Q2. Most Common Ratings per Content Type</h3> <p>By using the <code>RANK()</code> window function, we identify which maturity rating is most frequently applied to Movies and TV Shows respectively.</p> <pre> SELECT type, rating FROM ( SELECT type, rating, COUNT(show_id), RANK() OVER (PARTITION BY type ORDER BY COUNT(*) DESC) as Ranking FROM netflix GROUP BY 1, 2 ) as t1 WHERE ranking = 1; </pre>
 
-Problem 4. Find all tracks that belong to the album type single
-Code:
+<h3>Q3. Target Filtering: Content Released in 2020</h3> <pre> SELECT * FROM netflix WHERE release_year = 2020 AND type = 'Movie'; </pre>
 
---Find all tracks that belong to the album type single
-SELECT track FROM spotify
-WHERE album_type LIKE 'single';
+<h3>Q4. Regional Dominance: Top 5 Content-Producing Countries</h3> <p>Since the country column is often a comma-separated string, we use <code>string_to_array</code> and <code>UNNEST</code> to isolate each nation.</p> <pre> SELECT UNNEST(string_to_array(country, ',')) AS new_country, COUNT(show_id) as content_from_country FROM netflix GROUP BY new_country ORDER BY 2 DESC LIMIT 5; </pre>
 
-Problem 5. Count the total number of tracks by each artist.
-Code:
+<h3>Q5. Duration Metrics: Identifying the Longest Feature Film</h3> <p>We use <code>REPLACE</code> and type casting (<code>::INT</code>) to convert the "min" string into a numeric value for accurate sorting.</p> <pre> WITH movietable AS ( SELECT title, REPLACE(duration, ' min', '')::INT AS duration_minutes FROM netflix WHERE type = 'Movie' AND duration IS NOT NULL ) SELECT title, duration_minutes FROM movietable ORDER BY duration_minutes DESC LIMIT 1; </pre>
 
---Count the total number of tracks by each artist.
-SELECT 
-	artist, 
-	COUNT(track) AS total_tracks
-FROM spotify
-GROUP BY 1
-ORDER BY 2 DESC
-;
+<h3>Q6. Growth Trends: Content Added in the Last 5 Years</h3> <p>The <code>TO_DATE</code> function transforms raw text into a standard date format to enable chronological filtering.</p> <pre> SELECT title, date_added FROM netflix WHERE TO_DATE(date_added, 'Month DD, YYYY') >= CURRENT_DATE - INTERVAL '5 years'; </pre>
 
-5. Now that we're done with EASY EDA exercises;-; Lets now move to some intermediate ones.
+<h3>Q7. Directory Search: Portfolio of 'Rajiv Chilaka'</h3> <p>Using the <code>ILIKE</code> operator allows for case-insensitive pattern matching across the director list.</p> <pre> SELECT title, director FROM netflix WHERE director ILIKE '%Rajiv Chilaka%'; </pre>
 
-Problem 6. Calculate the average danceability of tracks in each album.
-Code:
+<h3>Q8. Episodic Depth: TV Shows Exceeding 5 Seasons</h3> <p>We utilize <code>SPLIT_PART</code> to isolate the number of seasons from the "Season" suffix for numerical comparison.</p> <pre> SELECT title, duration FROM netflix WHERE type = 'TV Show' AND SPLIT_PART(duration, ' ', 1)::numeric > 5; </pre>
 
---Calculate the average danceability of tracks in each album.
+<h3>Q9. Categorical Analysis: Content Count per Genre</h3> <pre> SELECT UNNEST(string_to_array(listed_in, ',')) AS genre_name, COUNT(show_id) AS content_count FROM netflix GROUP BY 1; </pre>
 
-SELECT album, AVG(danceability) AS avg_danceability
-FROM spotify
-GROUP BY 1;
+<h3>Q10. Regional Focus: Yearly Indian Content Release Trends</h3> <p>This reveals Netflix's acquisition and production trajectory in the Indian market.</p> <pre> SELECT release_year, COUNT(*) as total_releases FROM netflix WHERE country LIKE '%India%' GROUP BY release_year ORDER BY release_year DESC; </pre>
 
-Problem 7. Find the top 5 tracks with the highest energy values.
-Code:
+<h3>Q11. Specific Interest: Listing Documentaries</h3> <pre> SELECT * FROM netflix WHERE listed_in ILIKE '%Documentaries%'; </pre>
 
---Find the top 5 tracks with the highest energy values.
-Code:
+<h3>Q12. Data Quality Audit: Content Missing Director Information</h3> <pre> SELECT * FROM netflix WHERE director IS NULL; </pre>
 
-SELECT * FROM spotify;
-SELECT track, MAX(energy)
-FROM spotify
-GROUP BY 1
-ORDER BY 2
-LIMIT 5;
+<h3>Q13. Talent Analysis: Recent Portfolio of 'Salman Khan'</h3> <p>Filtering by both a specific cast member and a 10-year rolling window from the current date.</p> <pre> SELECT * FROM netflix WHERE casts ILIKE '%Salman Khan%' AND release_year > EXTRACT(YEAR FROM CURRENT_DATE) - 10; </pre>
 
+<h3>Q14. Prolific Actors: Top 10 Indian Movie Cast Members</h3> <p>Expansion of the comma-separated cast lists allows us to identify the most recurring actors in Indian cinema on the platform.</p> <pre> SELECT UNNEST(string_to_array(casts, ',')) AS actor_name, COUNT(*) AS Total_movies FROM netflix WHERE country LIKE '%India%' AND type = 'Movie' GROUP BY actor_name ORDER BY total_movies DESC LIMIT 10; </pre>
 
-Problem 8. List all tracks along with their views and likes where official_video = TRUE.
-Code:
+<h3>Q15. Automated Content Categorization (Sentiment/Theme Labeling)</h3> <p>By analyzing descriptions for specific keywords like "Kill" and "Violence," we use <code>CASE</code> statements to label content, aiding in internal auditing or parent-control classifications.</p> <pre> WITH content_categorizer AS ( SELECT , CASE WHEN description ILIKE '%Kill%' OR description ILIKE '%Violence%' THEN 'Bad_Content' ELSE 'Good_Content' END category FROM netflix ) SELECT category, COUNT() AS total_content FROM content_categorizer GROUP BY 1; </pre>
 
---List all tracks along with their views and likes where official_video = TRUE.
-
-SELECT * FROM spotify;
-SELECT track, views, likes
-FROM spotify
-WHERE official_video = 'true';
-
-Problem 9. For each album, calculate the total views of all associated tracks.
-Code:
-
---For each album, calculate the total views of all associated tracks.
-
-SELECT * FROM spotify;
-SELECT 
-	album,
-	track,
-	SUM(views) as Total_views
-FROM spotify
-GROUP BY 1, 2;
-
-Problem 10. Retrieve the track names that have been streamed on Spotify more than YouTube.
-Code:
---CTE method
-
-WITH platform_streams AS 
-	(
-	SELECT
-		track,
-		SUM(CASE WHEN most_played_on ILIKE 'Spotify' THEN stream ELSE 0 END) AS spotify_streams,
-		SUM(CASE WHEN most_played_on ILIKE 'Youtube' THEN stream ELSE 0 END) AS youtube_streams
-	FROM spotify
-	GROUP BY track
-	)
-SELECT track FROM platform_streams
-WHERE spotify_streams > youtube_streams;
-
---OR (using the aggregate function in HAVING clauses AND CASE function in the SUM to make it conditional)
-
-SELECT 
-	track
-FROM spotify
-GROUP BY track
-HAVING 
-	SUM(CASE WHEN most_played_on ILIKE 'Spotify' THEN stream ELSE 0 END) > SUM(CASE WHEN most_played_on ILIKE 'Youtube' THEN stream ELSE 0 END);
-
---OR(using self joining and creating 2 of same table to extract both youtube and spotify info from each and comparing.)
-
-SELECT s.track 
-FROM spotify AS s
-INNER JOIN spotify AS y
-ON s.track = y.track
-WHERE 
-	s.most_played_on ILIKE 'spotify'
- 	AND
-	y.most_played_on ILIKE 'youtube'
-	AND
-	s.stream > y.stream;
-
-6. Hoof, OKAY we're done w the intermediate ones. Now lets do the SPICY ones. The advanced queries.
-
-Problem 11. Find the top 3 most-viewed tracks for each artist using window functions.
-Code:
-
--- first we find out the track with highest view for each artist we can do it using rank and partition thereby getting ALL the rankings for that artist
---We use DENSE_RANK as an artist may have multiple HIGH ranked songs and it may be same 
---We add this entire rank data into a CTE and extract info outta it using a simple WHERE command
-
-
-WITH ranking_artist
-AS
-	(
-	SELECT
-		artist,
-		track,
-		SUM(views) as total_views,
-		DENSE_RANK() OVER(PARTITION BY artist ORDER BY SUM(views) DESC) AS ranking
-	FROM spotify
-	GROUP BY 1, 2
-	ORDER BY 1, 3 DESC
-	)
-SELECT * FROM ranking_artist
-WHERE ranking <=3;
-
-Problem 12. Write a query to find tracks where the liveness score is above the average.
-Code:
-
-SELECT 
-	* FROM spotify
-WHERE liveness > 0.19;
-
---SELECT AVG(liveness) FROM spotify;
-
---BUT IF THE DATA IS CHANGED THE FUNCTION BECOMES UN-USABLE so to avoid that we get a SOFT coded function.
-
-SELECT 
-	* FROM spotify
-WHERE liveness > (SELECT AVG(liveness) FROM spotify);
-
-Problem 13. Use a WITH clause to calculate the difference between the highest and lowest energy values for tracks in each album.
-Code:
-
-WITH energy_difference
-AS
-(
-SELECT 
-	album,
-	MAX(energy) AS max_energy,
-	MIN(energy) AS min_energy
-FROM spotify
-GROUP BY 1
-)
-SELECT album, (max_energy - min_energy) AS energy_dif
-FROM energy_difference;
-
-Problem 14. Find tracks where the energy-to-liveness ratio is greater than 1.2. (ITS NOT EVEN ADVANCED BTW;-;)
-Code:
-
-SELECT 
-	track,
-	energy_liveness
-FROM spotify
-WHERE energy_liveness > 1.2;
-
-Problem 15. Calculate the cumulative sum of likes for tracks ordered by the number of views, using window functions.
-Code:
-
-SELECT 
-	track,
-	views,
-	likes,
-	SUM(likes) OVER (ORDER BY views, track) AS cumulative_sum_of_likes
-FROM spotify;
-
-7. With that we're done w this project! It was a tad bit easy ngl.
+<h2>3. Project Conclusion</h2> <p>The insights generated through these SQL queries provide a multi-dimensional view of Netflix’s business operations. From identifying the most prolific actors to analyzing seasonal release trends, these data-driven outputs empower stakeholders to make informed decisions regarding licensing, original content production, and regional marketing strategies.</p>
